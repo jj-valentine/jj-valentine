@@ -1,0 +1,13 @@
+# Continuity / working files — local only, never commit (per global CLAUDE.md)
+HANDOFF.md
+TASKS.todo
+CHANGELOG.md
+
+# Design exploration / preview artifacts — local only
+assets/*.html
+assets/gen_*.py
+assets/header-A*.            # superseded bespoke-banner concepts
+assets/masthead-*.svg        # intermediate SVGs (final chosen asset committed explicitly)
+
+# OS cruft
+.DS_Store
