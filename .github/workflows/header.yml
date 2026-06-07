@@ -1,0 +1,67 @@
+name: header
+
+# Refresh the profile header's ✳ commit summary. All logic lives in this repo.
+# Triggers: cron heartbeat (~30m, early-exits cheaply when nothing changed) + manual +
+# a re-render when the generator/masthead changes. GITHUB_TOKEN commits don't re-trigger
+# workflows, and the commit carries [skip ci] — so this can never loop.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - "assets/gen_header.py"
+      - "assets/masthead-perletter.png"
+      - ".github/scripts/update_summary.py"
+      - ".github/workflows/header.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: header-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history — needed to see when header.png last changed)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install rsvg-convert (renders the SVG header to PNG)
+        run: sudo apt-get update && sudo apt-get install -y librsvg2-bin
+
+      - name: Install Intero Mono (from jj-valentine/intero-mono)
+        run: |
+          git clone --depth 1 https://github.com/jj-valentine/intero-mono.git /tmp/intero-mono
+          mkdir -p "$HOME/.local/share/fonts"
+          find /tmp/intero-mono -iname '*.ttf' -exec cp {} "$HOME/.local/share/fonts/" \;
+          fc-cache -f >/dev/null 2>&1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Refresh the ✳ summary (discover repos -> Haiku -> render)
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUMMARY_MODEL: ${{ vars.SUMMARY_MODEL }}
+        run: python3 .github/scripts/update_summary.py
+
+      - name: Commit if the header changed
+        run: |
+          if [ -n "$(git status --porcelain assets/header.png)" ]; then
+            git config user.name  "jjv-header-bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add assets/header.png
+            git commit -m "chore(header): refresh ✳ summary [skip ci]"
+            git push
+          else
+            echo "header unchanged — nothing to commit"
+          fi
