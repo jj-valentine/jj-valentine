@@ -55,16 +55,26 @@ def efficiency_classification_model(md):
     return None
 
 
+def strip_md(s):
+    """Remove bold/italic/backtick decoration from a cell value."""
+    return re.sub(r"[*`]", "", s).strip()
+
+
 def resolve(md):
     name = efficiency_classification_model(md)
     if not name:
         return None
-    return name_to_id(md).get(name.lower())
+    clean = strip_md(name).lower()
+    lookup = name_to_id(md)
+    return lookup.get(clean) or lookup.get(name.lower())
 
 
 def main():
     if "--file" in sys.argv:
-        with open(sys.argv[sys.argv.index("--file") + 1]) as f:
+        idx = sys.argv.index("--file")
+        if idx + 1 >= len(sys.argv):
+            sys.exit("error: --file requires a path argument")
+        with open(sys.argv[idx + 1]) as f:
             model = resolve(f.read())
         print("resolved SUMMARY_MODEL = %r (dry-run, not set)" % model)
         sys.exit(0 if model else 1)

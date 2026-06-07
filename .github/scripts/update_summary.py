@@ -94,8 +94,18 @@ def gh_headers(token):
 # ---------------------------------------------------------------------------- discover
 def discover_repos(token):
     """All repos the owner can see, newest-pushed first (public + private via GH_PAT)."""
-    url = "https://api.github.com/user/repos?affiliation=owner&sort=pushed&per_page=100"
-    return _get_json(url, gh_headers(token))
+    repos, page = [], 1
+    while True:
+        url = ("https://api.github.com/user/repos?affiliation=owner&sort=pushed"
+               "&per_page=100&page=%d" % page)
+        batch = _get_json(url, gh_headers(token))
+        if not batch:
+            break
+        repos.extend(batch)
+        if len(batch) < 100:
+            break
+        page += 1
+    return repos
 
 
 def tracked(repos):
@@ -251,6 +261,8 @@ def main(force=False):
         return
     if moved:
         print("moved since last_run: %s" % ", ".join(r["name"] for r in moved))
+        if not api_key:
+            sys.exit("error: ANTHROPIC_API_KEY is required (new commits need summarizing)")
 
     commits_by_repo = {}
     for r in moved:
@@ -260,8 +272,6 @@ def main(force=False):
             print("  %s: %d commit(s)" % (r["name"], len(subs)))
 
     if commits_by_repo:
-        if not api_key:
-            sys.exit("error: ANTHROPIC_API_KEY is required to summarize")
         summary = build_summary(commits_by_repo, model, api_key) or last_summary
     else:
         # no new activity. only reach here under --force (design re-render): keep current ✳.
