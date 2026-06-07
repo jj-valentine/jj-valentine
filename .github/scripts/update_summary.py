@@ -222,7 +222,7 @@ def compute_moved(token):
     last_run = last_header_change() or (now - timedelta(days=FIRST_RUN_LOOKBACK_DAYS)).isoformat()
     repos = tracked(discover_repos(token))
     cutoff = parse_iso(last_run)
-    moved = [r for r in repos if parse_iso(r["pushed_at"]) > cutoff]
+    moved = [r for r in repos if r.get("pushed_at") and parse_iso(r["pushed_at"]) > cutoff]
     return last_run, repos, moved
 
 
