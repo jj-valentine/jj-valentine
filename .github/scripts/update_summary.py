@@ -189,6 +189,31 @@ def parse_iso(s):
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 
+def compute_moved(token):
+    """(last_run, tracked_repos, repos_pushed_since_last_run). Cheap: one listing call."""
+    now = datetime.now(timezone.utc)
+    last_run = last_header_change() or (now - timedelta(days=FIRST_RUN_LOOKBACK_DAYS)).isoformat()
+    repos = tracked(discover_repos(token))
+    cutoff = parse_iso(last_run)
+    moved = [r for r in repos if parse_iso(r["pushed_at"]) > cutoff]
+    return last_run, repos, moved
+
+
+def check_for_work():
+    """Cheap pre-flight (no librsvg/font/Haiku): write has_work to $GITHUB_OUTPUT, exit."""
+    token = os.environ.get("GH_PAT") or os.environ.get("GITHUB_TOKEN", "")
+    if not token:
+        sys.exit("error: GH_PAT (or GITHUB_TOKEN) is required")
+    _, _, moved = compute_moved(token)
+    has = "true" if moved else "false"
+    print("has_work=%s (moved: %s)" % (has, ", ".join(r["name"] for r in moved) or "none"))
+    out = os.environ.get("GITHUB_OUTPUT")
+    if out:
+        with open(out, "a") as f:
+            f.write("has_work=%s\n" % has)
+    sys.exit(0)
+
+
 # ---------------------------------------------------------------------------- main
 def main():
     token   = os.environ.get("GH_PAT") or os.environ.get("GITHUB_TOKEN", "")
@@ -199,15 +224,9 @@ def main():
     if not model:
         sys.exit("error: SUMMARY_MODEL variable is required (no hardcoded model — ops rule)")
 
-    now = datetime.now(timezone.utc)
-    last_run = last_header_change() or (now - timedelta(days=FIRST_RUN_LOOKBACK_DAYS)).isoformat()
-    last_run_dt = parse_iso(last_run)
+    last_run, repos, moved = compute_moved(token)
     print("last_run (header.png last changed): %s" % last_run)
-
-    repos = tracked(discover_repos(token))
     print("tracked repos (%d): %s" % (len(repos), ", ".join(r["name"] for r in repos)))
-
-    moved = [r for r in repos if parse_iso(r["pushed_at"]) > last_run_dt]
     if not moved:
         print("no tracked repo pushed since last_run -> early exit (no Haiku, no render)")
         return
@@ -276,4 +295,6 @@ def self_test():
 if __name__ == "__main__":
     if "--self-test" in sys.argv:
         self_test()
+    if "--check" in sys.argv:
+        check_for_work()
     main()
