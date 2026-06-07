@@ -40,12 +40,14 @@ jobs:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: python3 .github/scripts/update_summary.py --check
 
+      # has_work gates the heavy steps on the cron heartbeat. A manual run or a push (design
+      # change) always proceeds and re-renders with the current ✳ text (--force).
       - name: Install rsvg-convert (renders the SVG header to PNG)
-        if: steps.check.outputs.has_work == 'true'
+        if: steps.check.outputs.has_work == 'true' || github.event_name != 'schedule'
         run: sudo apt-get update && sudo apt-get install -y librsvg2-bin
 
       - name: Install Intero Mono (from jj-valentine/intero-mono)
-        if: steps.check.outputs.has_work == 'true'
+        if: steps.check.outputs.has_work == 'true' || github.event_name != 'schedule'
         run: |
           git clone --depth 1 https://github.com/jj-valentine/intero-mono.git /tmp/intero-mono
           mkdir -p "$HOME/.local/share/fonts"
@@ -53,20 +55,22 @@ jobs:
           fc-cache -f >/dev/null 2>&1
 
       - name: Refresh the ✳ summary (discover repos -> Haiku -> render)
-        if: steps.check.outputs.has_work == 'true'
+        if: steps.check.outputs.has_work == 'true' || github.event_name != 'schedule'
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SUMMARY_MODEL: ${{ vars.SUMMARY_MODEL }}
-        run: python3 .github/scripts/update_summary.py
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then FORCE=--force; fi
+          python3 .github/scripts/update_summary.py $FORCE
 
       - name: Commit if the header changed
-        if: steps.check.outputs.has_work == 'true'
+        if: steps.check.outputs.has_work == 'true' || github.event_name != 'schedule'
         run: |
-          if [ -n "$(git status --porcelain assets/header.png)" ]; then
+          if [ -n "$(git status --porcelain assets/header.png .github/state/summary-state.json)" ]; then
             git config user.name  "jjv-header-bot"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add assets/header.png
+            git add assets/header.png .github/state/summary-state.json
             git commit -m "chore(header): refresh ✳ summary [skip ci]"
             git push
           else

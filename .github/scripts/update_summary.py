@@ -8,19 +8,23 @@ All logic lives in THIS repo (self-dependent; see the plan):
                New repos are picked up automatically — nothing to register.
   2. WINDOW    last_run = when assets/header.png last changed (git log). So "what's new" =
                commits since the header last updated. First run: a short lookback.
-  3. EARLY-EXIT if no tracked repo has pushed_at newer than last_run (one cheap listing call —
-               no commit fetches, no Haiku, no render).
+  3. EARLY-EXIT if no tracked repo has pushed_at newer than last_run (one cheap listing call).
+               --force (design-change re-render) skips the early exit.
   4. FETCH     commit subjects since last_run for the repos that moved.
   5. SUMMARIZE via Claude Haiku → the TWO highest-signal threads as
                "type(project|section): detail · type(project|section): detail".
                One universal privacy guardrail: never emit names/clients/emails/paths.
-  6. VALIDATE  against a strict regex; retry once. If still invalid → leave the header
-               UNCHANGED (the existing PNG is the last-good state — no separate state file).
-  7. RENDER    assets/header.png via gen_header.py. The workflow commits it only if it changed.
+  6. VALIDATE  against a strict regex; retry once. On failure (or no new activity under
+               --force) fall back to last_summary from the small committed state file.
+  7. RENDER    assets/header.png via gen_header.py + persist {last_summary} so a later
+               design-change can re-render with the same ✳ text. State changes lockstep with
+               the PNG (only when the summary changes) — no extra commit churn. The workflow
+               commits header.png + state only if they changed.
 
 Stdlib only (urllib) so CI needs no pip install.
 Env: GH_PAT (repo scope, reads private repos), ANTHROPIC_API_KEY, SUMMARY_MODEL.
-Run `python3 .github/scripts/update_summary.py --self-test` to exercise filter/validate offline.
+Flags: --check (cheap pre-flight: write has_work to $GITHUB_OUTPUT), --force (always render),
+       --self-test (offline checks).
 """
 import json
 import os
@@ -33,6 +37,7 @@ from datetime import datetime, timezone, timedelta
 
 ROOT       = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GEN_HEADER = os.path.join(ROOT, "assets", "gen_header.py")
+STATE_PATH = os.path.join(ROOT, ".github", "state", "summary-state.json")
 HEADER_PNG = os.path.join("assets", "header.png")   # repo-relative (for git log)
 
 OWNER = os.environ.get("GITHUB_REPOSITORY_OWNER", "jj-valentine")
@@ -46,8 +51,9 @@ EXCLUDE = {
     "jj-valentine",         # this repo — don't feed the bot's own refresh commits back in
 }
 
-FIRST_RUN_LOOKBACK_DAYS = 14   # window for the very first run (no prior header commit)
+FIRST_RUN_LOOKBACK_DAYS = 14
 MAX_COMMITS_PER_REPO    = 30
+DEFAULT_SUMMARY = "feat(cerebellum|recall): hybrid rerank · perf(intero|status): git cache"
 
 # type(project|section): detail   ·   type(project|section): detail
 _THREAD = r"[a-z]+\([a-z0-9._-]+\|[a-z0-9._-]+\): .+"
@@ -94,12 +100,8 @@ def discover_repos(token):
 
 def tracked(repos):
     """Opt-out filter: drop forks, archived, and the EXCLUDE set; keep everything else."""
-    out = []
-    for r in repos:
-        if r.get("fork") or r.get("archived") or r.get("name") in EXCLUDE:
-            continue
-        out.append(r)
-    return out
+    return [r for r in repos
+            if not (r.get("fork") or r.get("archived") or r.get("name") in EXCLUDE)]
 
 
 def fetch_commits(name, since, token):
@@ -169,7 +171,22 @@ def build_summary(commits_by_repo, model, api_key):
     return None
 
 
-# ---------------------------------------------------------------------------- window / render
+# ---------------------------------------------------------------------------- state / window / render
+def load_state():
+    try:
+        with open(STATE_PATH) as f:
+            return json.load(f)
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def save_state(last_summary, model):
+    os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
+    with open(STATE_PATH, "w") as f:
+        json.dump({"last_summary": last_summary, "model": model}, f, indent=2)
+        f.write("\n")
+
+
 def last_header_change():
     """ISO timestamp of the commit that last touched header.png; None if never."""
     try:
@@ -215,7 +232,7 @@ def check_for_work():
 
 
 # ---------------------------------------------------------------------------- main
-def main():
+def main(force=False):
     token   = os.environ.get("GH_PAT") or os.environ.get("GITHUB_TOKEN", "")
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     model   = os.environ.get("SUMMARY_MODEL", "").strip()
@@ -224,13 +241,16 @@ def main():
     if not model:
         sys.exit("error: SUMMARY_MODEL variable is required (no hardcoded model — ops rule)")
 
+    last_summary = load_state().get("last_summary")
     last_run, repos, moved = compute_moved(token)
     print("last_run (header.png last changed): %s" % last_run)
     print("tracked repos (%d): %s" % (len(repos), ", ".join(r["name"] for r in repos)))
-    if not moved:
+
+    if not moved and not force:
         print("no tracked repo pushed since last_run -> early exit (no Haiku, no render)")
         return
-    print("moved since last_run: %s" % ", ".join(r["name"] for r in moved))
+    if moved:
+        print("moved since last_run: %s" % ", ".join(r["name"] for r in moved))
 
     commits_by_repo = {}
     for r in moved:
@@ -238,20 +258,25 @@ def main():
         if subs:
             commits_by_repo[r["name"]] = subs
             print("  %s: %d commit(s)" % (r["name"], len(subs)))
-    if not commits_by_repo:
-        print("repos moved but no non-bot commits in window -> early exit")
-        return
 
-    if not api_key:
-        sys.exit("error: ANTHROPIC_API_KEY is required to summarize")
-    summary = build_summary(commits_by_repo, model, api_key)
+    if commits_by_repo:
+        if not api_key:
+            sys.exit("error: ANTHROPIC_API_KEY is required to summarize")
+        summary = build_summary(commits_by_repo, model, api_key) or last_summary
+    else:
+        # no new activity. only reach here under --force (design re-render): keep current ✳.
+        summary = last_summary
+
     if summary is None:
-        print("no valid summary produced -> leaving header unchanged (existing PNG is last-good)")
-        return
-    print("summary: %s" % summary)
+        if not force:
+            print("nothing to summarize and no stored summary -> leaving header unchanged")
+            return
+        summary = DEFAULT_SUMMARY   # very first run, quiet repos: seed the placeholder
+    print("summary: %s%s" % (summary, "  (forced re-render)" if force and not commits_by_repo else ""))
 
     render(summary)
-    print("rendered assets/header.png")
+    save_state(summary, model)
+    print("rendered assets/header.png + wrote state")
 
 
 # ---------------------------------------------------------------------------- self-test
@@ -284,7 +309,6 @@ def self_test():
     if {r["name"] for r in tracked(sample)} != {"cerebellum", "ops"}:
         print("FAIL tracked()"); ok = False
 
-    # invalid Haiku output (no key) -> None (header left unchanged)
     if build_summary({"cerebellum": ["x"]}, model="bad", api_key="") is not None:
         print("FAIL build_summary should be None on failure"); ok = False
 
@@ -297,4 +321,4 @@ if __name__ == "__main__":
         self_test()
     if "--check" in sys.argv:
         check_for_work()
-    main()
+    main(force="--force" in sys.argv)
