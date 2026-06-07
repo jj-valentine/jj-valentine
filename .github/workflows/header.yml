@@ -11,7 +11,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "assets/gen_header.py"
+      - ".github/scripts/gen_header.py"
       - "assets/masthead-perletter.png"
       - ".github/scripts/update_summary.py"
       - ".github/workflows/header.yml"

@@ -36,7 +36,7 @@ import urllib.error
 from datetime import datetime, timezone, timedelta
 
 ROOT       = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-GEN_HEADER = os.path.join(ROOT, "assets", "gen_header.py")
+GEN_HEADER = os.path.join(ROOT, ".github", "scripts", "gen_header.py")
 STATE_PATH = os.path.join(ROOT, ".github", "state", "summary-state.json")
 HEADER_PNG = os.path.join("assets", "header.png")   # repo-relative (for git log)
 

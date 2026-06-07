@@ -6,8 +6,6 @@ CHANGELOG.md
 # Design exploration / preview artifacts — local only
 assets/*.html
 assets/gen_*.py
-# EXCEPTION: the header generator runs in CI, so it must be committed
-!assets/gen_header.py
 # superseded bespoke-banner concepts
 assets/header-A*
 # intermediate SVGs (the chosen masthead PNG + header.png are committed explicitly)

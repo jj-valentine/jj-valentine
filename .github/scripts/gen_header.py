@@ -10,11 +10,12 @@ The ✳ commit summary is the only moving part — passed as argv[1] (or env SUM
 so CI re-renders just this PNG. The ✳ is drawn as an SVG shape (not a font glyph) so it
 renders identically everywhere and can never tofu. Output: assets/header.png at 2x.
 
-Usage:  python3 assets/gen_header.py "feat(cerebellum|recall): hybrid rerank · perf(ops|gate): model routing"
+Usage:  python3 .github/scripts/gen_header.py "feat(cerebellum|recall): hybrid rerank · perf(ops|gate): model routing"
 """
 import sys, os, base64, struct, subprocess, html
 
-ASSETS   = os.path.dirname(os.path.abspath(__file__))
+ROOT     = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+ASSETS   = os.path.join(ROOT, "assets")
 MASTHEAD = os.path.join(ASSETS, "masthead-perletter.png")
 OUT_SVG  = os.path.join(ASSETS, "header.svg")
 OUT_PNG  = os.path.join(ASSETS, "header.png")
