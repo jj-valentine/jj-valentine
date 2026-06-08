@@ -140,7 +140,7 @@ def anthropic_summary(prompt_text, model, api_key, reminder=""):
         raise ValueError("no ANTHROPIC_API_KEY")
     body = json.dumps({
         "model": model,
-        "max_tokens": 80,
+        "max_tokens": 256,
         "system": SYSTEM_PROMPT + reminder,
         "messages": [{"role": "user", "content": prompt_text}],
     }).encode("utf-8")
