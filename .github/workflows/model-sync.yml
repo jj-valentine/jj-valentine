@@ -1,0 +1,25 @@
+name: model-sync
+
+# Weekly: re-resolve which model the ✳ summary should use from ops/map/model-matrix.md
+# and write it into the SUMMARY_MODEL repo variable. No model ID is hardcoded anywhere; on
+# any fetch/parse failure the script leaves the existing variable untouched (last-known-good).
+on:
+  schedule:
+    - cron: "17 9 * * 1"   # Mondays 09:17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Resolve & set SUMMARY_MODEL
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: python3 .github/scripts/sync_model.py

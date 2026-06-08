@@ -6,8 +6,16 @@ CHANGELOG.md
 # Design exploration / preview artifacts — local only
 assets/*.html
 assets/gen_*.py
-assets/header-A*.            # superseded bespoke-banner concepts
-assets/masthead-*.svg        # intermediate SVGs (final chosen asset committed explicitly)
+# superseded bespoke-banner concepts
+assets/header-A*
+# intermediate SVGs (the chosen masthead PNG + header.png are committed explicitly)
+assets/masthead-*.svg
+assets/header.svg
+
+# Local design scratch (never commit)
+.firecrawl/
+.playwright-mcp/
+jjv-context-*.png
 
 # OS cruft
 .DS_Store
