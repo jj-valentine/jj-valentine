@@ -120,8 +120,8 @@ def fetch_commits(name, since, token):
            % (OWNER, name, since, MAX_COMMITS_PER_REPO))
     try:
         data = _get_json(url, gh_headers(token))
-    except urllib.error.HTTPError as e:
-        print("  ! %s: commits fetch failed (%s)" % (name, e.code))
+    except Exception as e:
+        print("  ! %s: commits fetch failed (%s)" % (name, e))
         return []
     subjects = []
     for c in data:
@@ -153,12 +153,26 @@ def anthropic_summary(prompt_text, model, api_key, reminder=""):
     return resp["content"][0]["text"].strip()
 
 
+_PRIVATE_RE = re.compile(
+    r"@"               # email-like
+    r"|://"            # URL
+    r"|(?:^|[\s(:])[~/]"  # file path (starts with / or ~)
+    r"|\.[a-z]{2,4}\b"    # domain/extension (.com, .json, .py)
+)
+
 def validate(summary):
-    """True if `summary` is exactly two well-formed threads joined by ' · '."""
+    """True if `summary` is exactly two well-formed threads joined by ' · '
+    AND contains no private content (emails, URLs, paths)."""
     if not summary or len(summary) > 140:
         return False
     parts = summary.split(" · ")
-    return len(parts) == 2 and all(THREAD_RE.match(p.strip()) for p in parts)
+    if len(parts) != 2 or not all(THREAD_RE.match(p.strip()) for p in parts):
+        return False
+    for p in parts:
+        detail = p.split(": ", 1)[1] if ": " in p else ""
+        if _PRIVATE_RE.search(detail):
+            return False
+    return True
 
 
 def build_summary(commits_by_repo, model, api_key):
@@ -300,6 +314,10 @@ def self_test():
         "Feat(Cerebellum|Recall): x · perf(intero|status): y",     # uppercase type/proj
         "just some freeform text about my day",                    # no format
         good + " · feat(extra|thread): z",                         # three threads
+        "feat(private|api): bob@example.com webhook · perf(x|y): z",  # email leak
+        "feat(x|y): fixed https://internal.corp/api · perf(x|y): z",  # URL leak
+        "feat(x|y): updated /etc/secrets/key · perf(x|y): z",         # path leak
+        "feat(x|y): parse config.json schema · perf(x|y): z",         # file extension
     ]
     if not validate(good):
         print("FAIL validate(good)"); ok = False
