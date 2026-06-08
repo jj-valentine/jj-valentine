@@ -21,7 +21,7 @@ OUT_SVG  = os.path.join(ASSETS, "header.svg")
 OUT_PNG  = os.path.join(ASSETS, "header.png")
 
 # --- content -----------------------------------------------------------------
-PATH    = "james@valentine: ~/seattle/{dev,dogs}"
+PATH    = "james@valentine: ~/Seattle/{dev,dogs}"
 DEFAULT = "feat(cerebellum|recall): hybrid rerank · perf(intero|status): git cache"
 TAGLINE = "studying intelligent systems and shaping their behavior"   # placeholder (Track B)
 KICKER  = "full-stack · agentic systems · harness & CLI tooling · memory"  # placeholder (Track B)
@@ -42,7 +42,7 @@ BAR_PAD_X    = 16
 LIGHT_R, LIGHT_GAP = 6.5, 9
 TITLE_FS     = 13
 CHAR_W       = TITLE_FS * 0.6        # Intero/Menlo are monospace (~0.6em advance)
-GAP_PATH_STAR, GAP_STAR_SUM = 16, 9
+GAP_PATH_STAR, GAP_STAR_SUM = 24, 17
 STAR_R, STAR_TH = 6.5, 2.0
 
 BODY_PAD_X, BODY_PAD_TOP, BODY_PAD_BOT = 30, 34, 30
