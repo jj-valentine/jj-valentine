@@ -36,6 +36,7 @@ jobs:
       # frequent cron ticks where nothing changed — keeps the ~30m heartbeat nearly free.
       - name: Check for new activity
         id: check
+        continue-on-error: true
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: python3 .github/scripts/update_summary.py --check
