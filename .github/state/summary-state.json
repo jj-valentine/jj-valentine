@@ -1,4 +1,4 @@
 {
-  "last_summary": "feat(cerebellum|recall): hybrid rerank \u00b7 perf(intero|status): git cache",
+  "last_summary": "feat(intero-cli|title): rewrite hooks with curl-based llm summaries \u00b7 fix(intero-cli|hooks): sync fetch and env inheritance",
   "model": "claude-haiku-4-5-20251001"
 }
