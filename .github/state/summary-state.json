@@ -1,4 +1,4 @@
 {
-  "last_summary": "feat(intero-cli|title): rewrite hooks with curl-based llm summaries \u00b7 fix(intero-cli|hooks): sync fetch and env inheritance",
+  "last_summary": "feat(ops|polling): gauntlet polling and caveman skill \u00b7 fix(intero-cli|perf): cache worktree detection and git operations",
   "model": "claude-haiku-4-5-20251001"
 }
